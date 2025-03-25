@@ -1,4 +1,0 @@
-#ifndef ADAPTIVE_MAP_HH
-#define ADAPTIVE_MAP_HH
-
-#endif // ADAPTIVE_MAP_HH
