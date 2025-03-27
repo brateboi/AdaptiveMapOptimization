@@ -76,6 +76,13 @@ add_executable(adaptive_map_optimization
         src/helpers.cc
         src/remesher.cc
 
+        src/include/adaptive_map.hh
+        src/include/helpers.hh
+        src/include/includes.hh
+        src/include/OptimizationElements2D.hh
+        src/include/remesher.hh
+        src/include/stress_tests.hh
+
 
     )
 
@@ -85,7 +92,6 @@ target_include_directories(adaptive_map_optimization
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
-        include
         ${EXTERNAL_DIR}/OpenMesh/src/
 )
 target_link_libraries(adaptive_map_optimization PUBLIC 
@@ -101,6 +107,12 @@ add_library(Adopt STATIC
     src/stress_tests.cc
     src/helpers.cc
     src/remesher.cc
+    src/include/adaptive_map.hh
+    src/include/helpers.hh
+    src/include/includes.hh
+    src/include/OptimizationElements2D.hh
+    src/include/remesher.hh
+    src/include/stress_tests.hh
 )
 
 target_include_directories(Adopt
@@ -112,7 +124,7 @@ target_include_directories(Adopt
        ${EXTERNAL_DIR}/OpenMesh/src/
         ${EXTERNAL_DIR}/CoMISo/src/
         ${EXTERNAL_DIR}/TinyAD/src/
-        include
+
     )
 
 target_link_libraries (Adopt PRIVATE
