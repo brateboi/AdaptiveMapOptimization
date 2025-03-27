@@ -17,7 +17,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
-set(EXTERNAL_DIR "/Users/FloriGod/Desktop/Masterarbeit/AdaptiveMapOptimization/external/")
+#set(EXTERNAL_DIR "/Users/FloriGod/Desktop/Masterarbeit/AdaptiveMapOptimization/external/")
+set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
 
 # find_package(OpenMesh REQUIRED)
 
