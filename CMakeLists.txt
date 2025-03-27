@@ -72,15 +72,9 @@ endif()
 
 add_executable(adaptive_map_optimization
         src/adaptive_map.cc
-        src/OptimizationElements2D.hh
-        src/adaptive_map.hh
         src/stress_tests.cc
         src/helpers.cc
-        src/stress_tests.hh
-        src/remesher.hh
         src/remesher.cc
-        src/includes.hh
-        src/helpers.hh
 
 
     )
@@ -91,6 +85,7 @@ target_include_directories(adaptive_map_optimization
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
+        include
         ${EXTERNAL_DIR}/OpenMesh/src/
 )
 target_link_libraries(adaptive_map_optimization PUBLIC 
@@ -103,15 +98,9 @@ target_link_libraries(adaptive_map_optimization PUBLIC
 #make library for openflipper
 add_library(Adopt STATIC
     src/adaptive_map.cc
-    src/OptimizationElements2D.hh
-    src/adaptive_map.hh
     src/stress_tests.cc
     src/helpers.cc
-    src/stress_tests.hh
-    src/remesher.hh
     src/remesher.cc
-    src/includes.hh
-    src/helpers.hh
 )
 
 target_include_directories(Adopt
@@ -123,6 +112,7 @@ target_include_directories(Adopt
        ${EXTERNAL_DIR}/OpenMesh/src/
         ${EXTERNAL_DIR}/CoMISo/src/
         ${EXTERNAL_DIR}/TinyAD/src/
+        include
     )
 
 target_link_libraries (Adopt PRIVATE

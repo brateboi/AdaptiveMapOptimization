@@ -237,6 +237,8 @@ TM optimize_inner_vertices(TM mesh_) {
             }
         }
 
+        // update P_ref each time to reference mesh
+
         auto setup_res = MyElem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
                                                    P_ref,
                                                    vc_barrier);
