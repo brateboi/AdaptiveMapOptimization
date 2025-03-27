@@ -76,12 +76,12 @@ add_executable(adaptive_map_optimization
         src/helpers.cc
         src/remesher.cc
 
-        src/include/adaptive_map.hh
-        src/include/helpers.hh
-        src/include/includes.hh
-        src/include/OptimizationElements2D.hh
-        src/include/remesher.hh
-        src/include/stress_tests.hh
+        src/adaptive_map.hh
+        src/helpers.hh
+        src/includes.hh
+        src/OptimizationElements2D.hh
+        src/remesher.hh
+        src/stress_tests.hh
 
 
     )
@@ -107,12 +107,12 @@ add_library(Adopt STATIC
     src/stress_tests.cc
     src/helpers.cc
     src/remesher.cc
-    src/include/adaptive_map.hh
-    src/include/helpers.hh
-    src/include/includes.hh
-    src/include/OptimizationElements2D.hh
-    src/include/remesher.hh
-    src/include/stress_tests.hh
+    src/adaptive_map.hh
+    src/helpers.hh
+    src/includes.hh
+    src/OptimizationElements2D.hh
+    src/remesher.hh
+    src/stress_tests.hh
 )
 
 target_include_directories(Adopt
