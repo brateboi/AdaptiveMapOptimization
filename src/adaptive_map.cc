@@ -32,21 +32,23 @@ int main(int argc, char const *argv[])
 
     //intuition_test();
 
-
-    TM deformed_mesh;
-
-    OM::IO::read_mesh(deformed_mesh, "../../../meshes/rectangle1_deformed.om" );
-
-    calculate_energy_of_mesh(deformed_mesh);
-
-    deformed_mesh.request_edge_status();
-    deformed_mesh.request_halfedge_status();
-    deformed_mesh.request_vertex_status();
-    deformed_mesh.request_face_status();
+    split_test();
 
 
-    constrain_non_original_vertices(deformed_mesh);
-    refine_and_optimize(deformed_mesh);
+    // TM deformed_mesh;
+
+    // OM::IO::read_mesh(deformed_mesh, "../../../meshes/rectangle1_deformed.om" );
+
+    // calculate_energy_of_mesh(deformed_mesh);
+
+    // deformed_mesh.request_edge_status();
+    // deformed_mesh.request_halfedge_status();
+    // deformed_mesh.request_vertex_status();
+    // deformed_mesh.request_face_status();
+
+
+    // constrain_non_original_vertices(deformed_mesh);
+    // refine_and_optimize(deformed_mesh);
 
 
 }

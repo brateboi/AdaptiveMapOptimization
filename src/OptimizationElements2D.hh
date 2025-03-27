@@ -245,6 +245,7 @@ public:
         std::cout<<" - barrier min = "<<barrier_min<<std::endl;*/
 
         if (d <= 0.0) {
+            //std::cout << "NEGATIVE DETERMINANT FOUND< INFINITE ENERGY,,     D " << d << std::endl;
             return static_cast<ScalarT>(std::numeric_limits<double>::infinity());
         } else {
             //auto E_sd = (1.0+d)*(J.squaredNorm() + J.inverse().squaredNorm() - 4.0);

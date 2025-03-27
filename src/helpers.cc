@@ -624,6 +624,56 @@ void intuition_test(){
 
 }
 
+void split_test(){
+    TM mesh;
+    mesh.request_edge_status();
+    mesh.request_halfedge_status();
+    mesh.request_vertex_status();
+    mesh.request_face_status();
+    constrain_non_original_vertices(mesh);
+
+    auto a = mesh.add_vertex(OM::Vec3d(-2.64,-0.18,0));
+    auto b = mesh.add_vertex(OM::Vec3d(-0.1,0.18,0));
+    auto c = mesh.add_vertex(OM::Vec3d(3.48,-0.32,0));
+    auto d = mesh.add_vertex(OM::Vec3d(0.58,-6.16,0));
+    auto e = mesh.add_vertex(OM::Vec3d(-8.46,-1.2,0));
+    auto f = mesh.add_vertex(OM::Vec3d(-2.84,3.72,0));
+    auto g = mesh.add_vertex(OM::Vec3d(2.92,3.68,0));
+    auto h = mesh.add_vertex(OM::Vec3d(10,-1,0));
+
+    auto fh1 = mesh.add_face(a, c, b);
+    auto fh2 = mesh.add_face(a, b, f);
+    auto fh3 = mesh.add_face(a, f, e);
+    auto fh4 = mesh.add_face(a, e, d);
+    auto fh5 = mesh.add_face(a, d, c);
+    //auto fh6 = mesh.add_face(b, g, f); // not in one ring of edge
+    auto fh7 = mesh.add_face(b, c, g);
+    auto fh8 = mesh.add_face(c, d, h);
+    auto fh9 = mesh.add_face(c, h, g);
+
+    OM::IO::write_mesh(mesh, "../../../meshes/before_split_test.om");
+
+    TM after_split = one_refine_step(mesh);
+
+
+    after_split.garbage_collection();
+
+    TM before_optimized = optimize_inner_vertices(mesh);
+    TM after_optimized = optimize_inner_vertices(after_split);
+
+
+    calculate_energy_of_mesh(mesh);
+    calculate_energy_of_mesh(after_split);
+    calculate_energy_of_mesh(before_optimized);
+    calculate_energy_of_mesh(after_optimized);
+
+    OM::IO::write_mesh(after_optimized, "../../../meshes/optimized_after_split_test.om");
+    OM::IO::write_mesh(before_optimized, "../../../meshes/optimized_before_split_test.om");
+
+
+    OM::IO::write_mesh(after_split, "../../../meshes/after_split_test.om");
+}
+
 
 
 

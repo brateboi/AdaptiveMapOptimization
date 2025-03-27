@@ -40,23 +40,23 @@ bool triangle_flip_condition(TM &mesh_, OM::HalfedgeHandle &heh, double _epsilon
     // returns false if p, q, r are not oriented ccw, or if sidelength < _epsilon
     auto well_oriented = [&](TM::Point p, TM::Point q, TM::Point r) -> bool {
 
-        // if sidelength of triangle is smaller than _epsilon return false
+        // if area of triangle is smaller than _epsilon return false
 
         double val0 = q[0] - p[0];
         double val1 = r[0] - p[0];
         double val2 = q[1] - p[1];
         double val3 = r[1] - p[1];
 
-        if (val0 * val3 - val2 * val1 < 0) {
-            std::cout << "       TRIANGLE FLIPPED" << std::endl;
+        if (val0 * val3 - val2 * val1 < _epsilon) {
+            std::cout << "       TOO SMALL Determinant" << std::endl;
             return false;
         }
 
         // only check if we are "CREATING" a small sidelength
-        if (sidelength(p,q) < _epsilon || sidelength(p,r) < _epsilon){
-            std::cout << "       SMALL SIDELENGTH" << std::endl;
-            return false;
-        }
+        // if (sidelength(p,q) < _epsilon || sidelength(p,r) < _epsilon){
+        //     std::cout << "       SMALL SIDELENGTH" << std::endl;
+        //     return false;
+        // }
 
         return true; // oriented ccw and sidelength > _epsilon
     };
@@ -173,7 +173,10 @@ std::vector<OM::HalfedgeHandle> is_collapse_okay(TM &mesh_, OM::EdgeHandle eh, d
 TM one_refine_step(TM mesh_, double max_angle_, double max_ratio_){
     int split_count = 0;
     int collapse_count = 0;
-    split_needles_and_collapse_spikes(mesh_, max_angle_, max_ratio_, split_count, collapse_count);
+    split_needles_and_collapse_spikes(mesh_, max_angle_, max_ratio_, split_count, collapse_count, true, true);
+    //mesh_.garbage_collection();
+    //split_needles_and_collapse_spikes(mesh_, max_angle_, max_ratio_, split_count, collapse_count, false, true);
+    //mesh_.garbage_collection();
     return mesh_;
 }
 
@@ -191,7 +194,7 @@ void refine_and_optimize(TM mesh_){
 
 
 
-    int refine_optimize_times = 3;
+    int refine_optimize_times = 20;
 
     TM multiple_pass_mesh = mesh_;
 
@@ -299,7 +302,7 @@ void split_needles_and_collapse_spikes(TM &mesh_,
                                       double split_angle_thresh,
                                       double collapse_side_len_ratio,
                                       int& split_count,
-                                      int& collapse_count){
+                                      int& collapse_count, bool splits_allowed, bool collapses_allowed){
 
     std::cout<<" ===== Remeshing mesh by collapsing or splitting its edges "<<std::endl;
     std::cout<<" -       using needle angle threshold "<<split_angle_thresh<<std::endl;
@@ -422,8 +425,13 @@ void split_needles_and_collapse_spikes(TM &mesh_,
     std::cout<<"        both: "<<spike_needle_elements_count<<std::endl;
     std::cout<<"      others: "<<unhandled_count<<std::endl;
 
-    //split_count    = split_edges_based_on_priority(mesh_, split_queue);
-    collapse_count = collapse_edges_based_on_priority(mesh_, collapse_queue);
+    if (collapses_allowed){
+        collapse_count = collapse_edges_based_on_priority(mesh_, collapse_queue);
+    }
+    if (splits_allowed){
+        split_count    = split_edges_based_on_priority(mesh_, split_queue);
+    }
+
 
     std::cout << "===== Done remeshing:" << std::endl;
     std::cout << "    Edge splits: " << split_count << std::endl;

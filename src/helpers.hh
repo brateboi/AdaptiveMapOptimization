@@ -14,4 +14,5 @@ void collapse_test();
 void constrain_non_original_vertices(TM &mesh_);
 double total_area(TM &mesh_);
 void intuition_test();
+void split_test();
 

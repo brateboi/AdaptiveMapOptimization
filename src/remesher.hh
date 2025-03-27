@@ -30,4 +30,4 @@ void split_needles_and_collapse_spikes(TM &mesh_,
                                        double split_angle_thresh,
                                        double collapse_side_len_ratio,
                                        int& split_count,
-                                       int& collapse_count);
+                                       int& collapse_count, bool splits_allowed, bool collapses_allowed);
