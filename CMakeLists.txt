@@ -108,6 +108,10 @@ add_library(Adopt STATIC
     src/stress_tests.cc
     src/helpers.cc
     src/stress_tests.hh
+    src/remesher.hh
+    src/remesher.cc
+    src/includes.hh
+    src/helpers.hh
 )
 
 target_include_directories(Adopt
