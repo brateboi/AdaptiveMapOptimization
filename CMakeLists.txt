@@ -64,9 +64,10 @@ endif()
 if(NOT TARGET CoMISo)
     FetchContent_Declare(comiso
             GIT_REPOSITORY https://graphics.rwth-aachen.de:9000/CoMISo/CoMISo.git
-            GIT_TAG c1720c6a
+            GIT_TAG master
             SOURCE_DIR "${EXTERNAL_DIR}/CoMISo"
     )
+    option(COMISO_NO_INSTALL "avoid cmake install/export (hack)" ON)
     FetchContent_MakeAvailable(comiso)
 endif()
 
