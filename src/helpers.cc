@@ -1,6 +1,9 @@
 #include <adaptive_map.hh>
 #include <remesher.hh>
 
+
+
+
 void constrain_non_original_vertices(TM &mesh_){
     OM::VPropHandleT<bool> fixed_prop;
 
@@ -677,10 +680,6 @@ void split_test(){
 }
 
 
-
-
-
-
 void minimum_example(){
 
     TM mesh = get_minimum_mesh();
@@ -691,3 +690,155 @@ void minimum_example(){
 
     OM::IO::write_mesh(optimized_mesh, "../../../meshes/optimized_mesh.om");
 }
+
+
+
+TM get_disk_mesh_without_interior_vertices(int n_vertices, double radius){
+
+    bool balanced_mode = true;
+
+    TM disk_mesh = TM();
+
+    auto get_pos = [&](int i) -> OM::Vec3d{
+        double theta = ((double)i / (double)n_vertices) * 2* M_PI;
+        return OM::Vec3d(radius * std::cos(theta), radius * std::sin(theta), 0);
+    };
+
+    int n_faces = n_vertices - 2;
+
+    if (n_faces <= 0 ){
+        std::cerr << "Need atleast 3 vertices" << std::endl;
+        exit(-1);
+    }
+
+    std::vector<OM::VertexHandle> verts;
+    for (int i = 0; i < n_vertices; i++){
+        verts.push_back(disk_mesh.add_vertex(get_pos(i)));
+    }
+
+    if(balanced_mode){
+        int passes = n_vertices / 2;
+        if (n_vertices % 2  == 0){ // even --> top and bottom face, + left + right
+
+            // top
+            disk_mesh.add_face(verts[0], verts[1], verts[n_vertices-1]);
+
+            // bottom
+            disk_mesh.add_face(verts[passes], verts[passes+1], verts[passes-1]);
+
+            for (int i = 1; i < passes-1; i++){
+
+                disk_mesh.add_face(verts[i], verts[i+1], verts[n_vertices-i]);
+                disk_mesh.add_face(verts[i+1], verts[n_vertices-i-1], verts[n_vertices-i]);
+            }
+
+
+
+        } else { // odd --> top, left + right
+            // top
+            disk_mesh.add_face(verts[0], verts[1], verts[n_vertices-1]);
+
+            for (int i = 1; i < passes - 1; i++){
+                disk_mesh.add_face(verts[i], verts[i+1], verts[n_vertices-i]);
+                disk_mesh.add_face(verts[i+1], verts[n_vertices-i-1], verts[n_vertices-i]);
+            }
+        }
+    } else {
+        for (int i = 1; i < n_vertices - 1; i++){
+            disk_mesh.add_face(verts[0], verts[i], verts[i+1]);
+        }
+    }
+
+    return disk_mesh;
+}
+
+TM get_box_mesh_one_interior_vertex(int n_height_vertices, double height){
+    TM box_mesh;
+
+    double width = 1;
+
+    OM::Vec3d center = OM::Vec3d(width/2, height/2, 0);
+
+    for (int i = 0; i <= n_height_vertices; i++){
+
+        OM::Vec3d pos1 = OM::Vec3d(0, (double)i/n_height_vertices * height, 0);
+        OM::Vec3d pos2 = OM::Vec3d(1, (double)i/n_height_vertices * height, 0);
+
+        box_mesh.add_vertex(pos1);
+        box_mesh.add_vertex(pos2);
+    }
+
+    auto c_vh = box_mesh.add_vertex(center);
+
+    for (int i = 0; i < 2*n_height_vertices; i+= 2){
+        std::cout << " " << i << " " << c_vh.idx() << " " << i+2 << std::endl;
+        std::cout << " " << i+1 << " " << i+3 << " " << c_vh.idx() <<  std::endl;
+
+
+        box_mesh.add_face(OM::VertexHandle(i), OM::VertexHandle(c_vh), OM::VertexHandle(i+2));
+        box_mesh.add_face(OM::VertexHandle(i+1), OM::VertexHandle(i+3), OM::VertexHandle(c_vh));
+    }
+
+    box_mesh.add_face(OM::VertexHandle(0), OM::VertexHandle(1), OM::VertexHandle(c_vh));
+    box_mesh.add_face(OM::VertexHandle(2*n_height_vertices), OM::VertexHandle(c_vh), OM::VertexHandle(2*n_height_vertices + 1));
+
+
+    return box_mesh;
+}
+
+
+OptimizationTarget get_disk_optimization_target(TM &disk, double inner_radius, double outer_radius){
+
+    OptimizationTarget target;
+
+    OM::Vec3d center = OM::Vec3d(0,0,0);
+
+    for (int i = 0; i < disk.n_vertices(); i++){
+        auto vh = OM::VertexHandle(i);
+        auto pos = disk.point(vh);
+
+        // pointing from center with length 1
+        OM::Vec3d dir = pos - center;
+        dir.normalize();
+
+        OM::Vec3d new_pos;
+
+        if( i % 2 == 0) { // all even verts to inner radius
+            new_pos = inner_radius * dir;
+        } else { // all odd verts to outer radius
+            new_pos = outer_radius * dir;
+        }
+        target.push_back(std::pair(vh, new_pos));
+    }
+    return target;
+}
+
+OptimizationTarget get_box_optimization_target(TM &box, double frequency, double amplitude){
+    // sine deformation based on height
+    auto deform_func = [&](double y){
+        return amplitude * std::sin(frequency * y);
+    };
+
+    OptimizationTarget target;
+
+
+    // constrain the fixed vertices, i.e. vertices 0-27 by using the y-cord as input to the sine-function as a deformation map.
+    for (int i = 0; i < box.n_vertices(); ++i){
+        auto vh = TM::VertexHandle(i);
+
+
+        auto pos = box.point(vh);
+
+        double x = pos[0];
+        double y = pos[1];
+
+        double new_x = x + deform_func(y);
+
+        OM::Vec3d new_pos = OM::Vec3d(new_x, y, 0);
+
+        target.push_back(std::pair(vh, new_pos));
+    }
+
+    return target;
+}
+

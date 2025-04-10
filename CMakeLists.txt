@@ -33,21 +33,39 @@ if(NOT TARGET OpenMeshCore)
 endif()
 
 
-#find_package(Eigen3 QUIET)
-if(NOT TARGET Eigen3::Eigen)
-    FetchContent_Declare(eigen
-            #GIT_REPOSITORY https://gitlab.com/libeigen/eigen
-            #GIT_TAG 3.4.0
-            GIT_REPOSITORY https://gitlab.com/mheistermann/eigen
-            GIT_TAG fix/spqr-index-vs-storageindex
-            SOURCE_DIR "${EXTERNAL_DIR}/eigen"
+# find_package(Eigen3 QUIET)
+# if(NOT TARGET Eigen3::Eigen)
+#     FetchContent_Declare(eigen
+#             #GIT_REPOSITORY https://gitlab.com/libeigen/eigen
+#             #GIT_TAG 3.4.0
+#             GIT_REPOSITORY https://gitlab.com/mheistermann/eigen
+#             GIT_TAG fix/spqr-index-vs-storageindex
+#             SOURCE_DIR "${EXTERNAL_DIR}/eigen"
+#     )
+#     FetchContent_Populate(eigen)
+#     message("Downloaded Eigen3 to ${eigen_SOURCE_DIR}")
+#     add_library(Eigen3::Eigen INTERFACE IMPORTED)
+#     target_include_directories(Eigen3::Eigen INTERFACE "$<BUILD_INTERFACE:${eigen_SOURCE_DIR}>")
+
+#     #target_compile_definitions(Eigen3::Eigen INTERFACE -DEIGEN_HAS_STD_RESULT_OF=0)
+# endif()
+
+find_package(Eigen3 QUIET)
+if (NOT EIGEN3_FOUND)
+    message("Eigen3 not found, downloading...")
+    include(FetchContent)
+    FetchContent_Declare(
+            eigen3
+            URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
     )
-    FetchContent_Populate(eigen)
-    message("Downloaded Eigen3 to ${eigen_SOURCE_DIR}")
-    add_library(Eigen3::Eigen INTERFACE IMPORTED)
-    target_include_directories(Eigen3::Eigen INTERFACE "$<BUILD_INTERFACE:${eigen_SOURCE_DIR}>")
-    #target_compile_definitions(Eigen3::Eigen INTERFACE -DEIGEN_HAS_STD_RESULT_OF=0)
-endif()
+    FetchContent_Populate(eigen3)
+
+    add_library(eigen INTERFACE)
+    add_library(Eigen3::Eigen ALIAS eigen)
+    target_include_directories(eigen INTERFACE
+            $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
+            )
+endif ()
 
 
 if(NOT TARGET TinyAD)
@@ -84,6 +102,12 @@ add_executable(adaptive_map_optimization
         src/OptimizationElements2D.hh
         src/remesher.hh
         src/stress_tests.hh
+        src/RemesherBase.hh
+        src/RemesherValentin.hh
+        src/RemesherValentin.cc
+        src/RemesherNaive.hh
+        src/RemesherNaive.cc
+
 
 
     )
@@ -96,7 +120,7 @@ target_include_directories(adaptive_map_optimization
         $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
         ${EXTERNAL_DIR}/OpenMesh/src/
 )
-target_link_libraries(adaptive_map_optimization PUBLIC 
+target_link_libraries(adaptive_map_optimization PUBLIC
         OpenMeshCore
         OpenMeshTools
         CoMISo
@@ -109,20 +133,28 @@ add_library(Adopt STATIC
     src/stress_tests.cc
     src/helpers.cc
     src/remesher.cc
+
     src/adaptive_map.hh
     src/helpers.hh
     src/includes.hh
     src/OptimizationElements2D.hh
     src/remesher.hh
     src/stress_tests.hh
+    src/RemesherBase.hh
+    src/RemesherValentin.hh
+    src/RemesherValentin.cc
+    src/RemesherNaive.hh
+    src/RemesherNaive.cc
 )
+
+
 
 target_include_directories(Adopt
        PUBLIC
        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-      $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
+       $<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>
        ${EXTERNAL_DIR}/OpenMesh/src/
         ${EXTERNAL_DIR}/CoMISo/src/
         ${EXTERNAL_DIR}/TinyAD/src/
@@ -130,8 +162,16 @@ target_include_directories(Adopt
     )
 
 target_link_libraries (Adopt PRIVATE
-   OpenMeshCore
-   OpenMeshTools
-   CoMISo
-   PRIVATE Eigen3::Eigen)
+    OpenMeshCore
+    OpenMeshTools
+    CoMISo
+    Eigen3::Eigen)
+
+if(NOT "${CMAKE_PROJECT_NAME}" MATCHES "Adopt")
+    set (ADOPT_FOUND true PARENT_SCOPE)
+    set (ADOPT_LIBRARIES Adopt PARENT_SCOPE)
+    set (ADOPT_LIBRARY Adopt PARENT_SCOPE)
+    set (ADOPT_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src/" PARENT_SCOPE)
+    set (ADOPT_LIBRARY_DIR "${CMAKE_CURRENT_BINARY_DIR}" CACHE PATH "The directory where the Adopt libraries can be found.")
+endif()
 

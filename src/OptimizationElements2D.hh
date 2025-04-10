@@ -255,7 +255,7 @@ public:
             //return w * E_sd;
 
             if (barrier_w && barrier_min - E_sd <= 0.0) {
-                //std::cout<<" inf barrier term"<<std::endl;
+                std::cout<<" inf barrier term"<<std::endl;
                 return static_cast<ScalarT>(std::numeric_limits<double>::infinity());
             }
             //return w * E_sd;

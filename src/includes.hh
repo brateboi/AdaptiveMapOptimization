@@ -3,7 +3,10 @@
 
 
 #include <iostream>
+
+
 #include <Eigen/Dense>
+//#include <eigen3/Eigen/Dense>
 
 
 #include <OpenMesh/Core/Mesh/TriMeshT.hh>
@@ -11,9 +14,9 @@
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
-
-#include <CoMISo/Config/config.hh>
 #include <CoMISo/Utils/StopWatch.hh>
+#include <CoMISo/Config/config.hh>
+
 
 #include <CoMISo/NSolver/NPDerivativeChecker.hh>
 #include <CoMISo/NSolver/NPTiming.hh>
@@ -29,6 +32,7 @@
 namespace OM = OpenMesh;
 using TM = OM::TriMesh;
 
+using OptimizationTarget = std::vector<std::pair<OM::VertexHandle, OM::Vec3d>>;
 
 using Vec2d = Eigen::Vector2d;
 using Mat2d = Eigen::Matrix<double, 2, 2>;

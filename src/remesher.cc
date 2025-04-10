@@ -326,8 +326,6 @@ void split_needles_and_collapse_spikes(TM &mesh_,
     mesh_.property(both_prop).set_persistent(true);
 
 
-
-
     int spike_needle_elements_count = 0;
     int unhandled_count = 0;
 
