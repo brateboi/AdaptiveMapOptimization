@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 14.0.2, 2025-04-07T13:27:56. -->
+<!-- Written by QtCreator 14.0.2, 2025-04-15T11:30:41. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -94,7 +94,7 @@
    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DefaultDisplayName">Default kit idk</value>
    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">Default kit idk</value>
    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">{5bbfbf0a-7b78-4f9f-9ba3-50e3d6e05fe7}</value>
-   <value type="qlonglong" key="ProjectExplorer.Target.ActiveBuildConfiguration">1</value>
+   <value type="qlonglong" key="ProjectExplorer.Target.ActiveBuildConfiguration">0</value>
    <value type="qlonglong" key="ProjectExplorer.Target.ActiveDeployConfiguration">0</value>
    <value type="qlonglong" key="ProjectExplorer.Target.ActiveRunConfiguration">0</value>
    <valuemap type="QVariantMap" key="ProjectExplorer.Target.BuildConfiguration.0">
@@ -115,6 +115,7 @@
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/Users/FloriGod/Development/OF/OpenFlipper-Free/libs/AdaptiveMapOptimization/build/Default_kit_idk-Debug</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
+      <value type="QString" key="CMakeProjectManager.MakeStep.AdditionalArguments">-j16</value>
       <value type="QString" key="CMakeProjectManager.MakeStep.BuildPreset"></value>
       <valuelist type="QVariantList" key="CMakeProjectManager.MakeStep.BuildTargets">
        <value type="QString">all</value>
@@ -414,7 +415,7 @@
     <value type="bool" key="RunConfiguration.UseCppDebuggerAuto">true</value>
     <value type="bool" key="RunConfiguration.UseLibrarySearchPath">true</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
-    <value type="QString" key="RunConfiguration.WorkingDirectory.default">/Users/FloriGod/Development/OF/OpenFlipper-Free/libs/AdaptiveMapOptimization/build/Default_kit_idk-Release/Build/bin</value>
+    <value type="QString" key="RunConfiguration.WorkingDirectory.default">/Users/FloriGod/Development/OF/OpenFlipper-Free/libs/AdaptiveMapOptimization/build/Default_kit_idk-Debug/Build/bin</value>
    </valuemap>
    <value type="qlonglong" key="ProjectExplorer.Target.RunConfigurationCount">1</value>
   </valuemap>

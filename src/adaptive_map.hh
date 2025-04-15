@@ -48,7 +48,9 @@ public :
     // remeshes
     void remesh();
 
-    void optimize_target_position();
+    void optimize_target_position_with_hard_constraints();
+
+    void optimize_target_position_with_penalty_terms();
 
     void one_step();
 

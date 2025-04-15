@@ -842,3 +842,18 @@ OptimizationTarget get_box_optimization_target(TM &box, double frequency, double
     return target;
 }
 
+
+void scale_problem(TM &mesh_, OptimizationTarget &target_, double scaling_factor){
+    for (const auto vh : mesh_.vertices()){
+        OM::Vec3d new_pos = mesh_.point(vh) * scaling_factor;
+        mesh_.set_point(vh, new_pos);
+    }
+
+    for (size_t i = 0; i < target_.size(); i++){
+        auto pair = target_.at(i);
+        OM::Vec3d new_pos = pair.second * scaling_factor;
+
+        target_.at(i) = {pair.first, new_pos};
+
+    }
+}

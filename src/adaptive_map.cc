@@ -9,6 +9,12 @@ using OptimizationTarget = std::vector<std::pair<OM::VertexHandle, OM::Vec3d>>;
 
 namespace AdaptiveMapOptimizer {
 
+enum ConstraintMode {
+    HardConstraint,
+    QuadraticPenaltyTerm, // 2-norm
+    ExactPenaltyTerm, // 1-norm
+};
+
 void AdaptiveMapOptimizer::remesh(){
 
     remesher.one_refine_step();
@@ -16,24 +22,12 @@ void AdaptiveMapOptimizer::remesh(){
 }
 
 
-void AdaptiveMapOptimizer::optimize_target_position(){
+void AdaptiveMapOptimizer::optimize_target_position_with_hard_constraints(){
 
-    using MyElem = SDEB2D_PH_AD;
+    using SDE_Elem = SDEB2D_PH_AD;
 
     std::cout<<" ---------------------------------------------------------------------------------------- "<<std::endl;
-    std::cout<<" *** trying to deform mesh now" << std::endl;
-
-
-    // std::vector<Vec2d> P_ref(3);
-    // P_ref[0] << 0,0;
-    // P_ref[1] << 1,0;
-    // P_ref[2] << 0.5, 0.5 * std::sqrt(3.0);
-
-    // double scale_factor = 1;
-
-    // for(int i(0); i<3; i++){
-    //     P_ref[i] *= scale_factor;
-    // }
+    std::cout<<" *** trying to deform mesh now with hard constraints" << std::endl;
 
 
     //low weight so the pull has the most influence and this only really serves as a barrier
@@ -47,7 +41,7 @@ void AdaptiveMapOptimizer::optimize_target_position(){
     std::vector<COMISO::LinearConstraint> eq_constraints;
 
 
-    COMISO::FiniteElementSet<MyElem> fe_barrier("barrier elements");
+    COMISO::FiniteElementSet<SDE_Elem> fe_barrier("barrier elements");
 
     //add the barrier elements
     for (auto fh: target_mesh.faces()) {
@@ -57,9 +51,9 @@ void AdaptiveMapOptimizer::optimize_target_position(){
         double w = 1;
         double sizing_scale = 1.0; //compute_sizing_scale(ch);
 
-        typename MyElem::VecI vi_barrier;
-        typename MyElem::VecC vc_barrier;
-        typename MyElem::VecV vx_barrier;
+        typename SDE_Elem::VecI vi_barrier;
+        typename SDE_Elem::VecC vc_barrier;
+        typename SDE_Elem::VecV vx_barrier;
 
         std::vector<TM::VertexHandle> verts = std::vector(target_mesh.fv_begin(fh), target_mesh.fv_end(fh));
 
@@ -90,13 +84,8 @@ void AdaptiveMapOptimizer::optimize_target_position(){
         P_ref[1] << p1[0],p1[1];
         P_ref[2] << p2[0],p2[1];
 
-        // double scale_factor = 1;
 
-        // for(int i(0); i<3; i++){
-        //     P_ref[i] *= scale_factor;
-        // }
-
-        auto setup_res = MyElem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
+        auto setup_res = SDE_Elem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
                                                    P_ref,
                                                    vc_barrier);
 
@@ -167,6 +156,162 @@ void AdaptiveMapOptimizer::optimize_target_position(){
         target_mesh.set_point(v, new_pos);
     }
 
+
+    //return updated mesh positions
+
+    std::cout<<" --------------------------------------------------------- "<<std::endl;
+
+}
+
+void AdaptiveMapOptimizer::optimize_target_position_with_penalty_terms(){
+
+    using SDE_Elem = SDEB2D_PH_AD;
+
+    std::cout<<" ---------------------------------------------------------------------------------------- "<<std::endl;
+    std::cout<<" *** trying to deform mesh now with penalty term" << std::endl;
+
+
+    //low weight so the pull has the most influence and this only really serves as a barrier
+    const double Dirichlet_w(1), Dirichlet_barrier_w(0), Dirichlet_barrier_min(1e1);
+    const int max_inner_iters(100);
+    const int n_vars(target_mesh.n_vertices() * 2);
+
+    const double target_penalty_weight = 1; // TODO, SCALE INVARIANT
+
+
+    std::cout << "#######nr of n_vars " << n_vars << std::endl;
+
+    COMISO::FiniteElementProblem fe_problem(n_vars);
+    std::vector<COMISO::LinearConstraint> eq_constraints;
+
+
+    COMISO::FiniteElementSet<SDE_Elem> fe_barrier("barrier elements");
+
+    //add the barrier elements
+    for (auto fh: target_mesh.faces()) {
+
+        //std::cout<<" --------------------------------------------------- handling face "<<fh<<std::endl;
+
+        double w = 1;
+        double sizing_scale = 1.0; //compute_sizing_scale(ch);
+
+        typename SDE_Elem::VecI vi_barrier;
+        typename SDE_Elem::VecC vc_barrier;
+        typename SDE_Elem::VecV vx_barrier;
+
+        std::vector<TM::VertexHandle> verts = std::vector(target_mesh.fv_begin(fh), target_mesh.fv_end(fh));
+
+        //auto verts = mesh_.get_halfface_vertices(mesh_.halfface_handle(fh,0));
+
+
+        for (int local_vid(0); local_vid < 3; local_vid++) {
+            const auto &vh = verts[local_vid];
+
+            int global_id = vh.idx() * 2;
+            for (int i(0); i < 2; i++) {
+                vi_barrier[2 * local_vid + i] = global_id + i;
+            }
+
+            for (int i(0); i < 2; i++) {
+                fe_problem.x()[global_id + i] = reference_mesh.point(vh)[i];
+                vx_barrier[2 * local_vid + i] = fe_problem.x()[global_id + i];
+            }
+        }
+
+        // use reference element from reference mesh
+        auto p0 = reference_mesh.point(verts[0]);
+        auto p1 = reference_mesh.point(verts[1]);
+        auto p2 = reference_mesh.point(verts[2]);
+
+        std::vector<Vec2d> P_ref(3);
+        P_ref[0] << p0[0],p0[1];
+        P_ref[1] << p1[0],p1[1];
+        P_ref[2] << p2[0],p2[1];
+
+
+        auto setup_res = SDE_Elem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
+                                                     P_ref,
+                                                     vc_barrier);
+
+        //std::cout<<" - constants vector: "<<vc_barrier.transpose()<<std::endl;
+
+        if (setup_res) {
+            std::cout << " ERROR: constants couldn't be computed for face: " <<fh<< std::endl;
+            return;
+        }
+
+        fe_barrier.instances().add_element(vi_barrier,
+                                           vc_barrier);
+    }
+    fe_problem.add_set(&fe_barrier);
+
+
+    // ****************************************************
+    // Add the penalty elements for vertices with target positions
+    // ****************************************************
+    COMISO::FiniteElementSet<QP2D_AD_PH> fe_penalty("penalty elements");
+
+    for (const auto vh : target_mesh.vertices()) {
+        if (target_mesh.property(has_target, vh)) {
+            // Get the target position
+            auto target_pos = target_mesh.property(target_positions, vh);
+
+            // Global index in the optimization variable vector
+            int global_id = vh.idx() * 2;
+
+            // Prepare the constant vector for the penalty term:
+            // [target_penalty_weight, target_x, target_y]
+            QuadraticPenaltyElement2D::VecC consts;
+            consts[0] = target_penalty_weight;
+            consts[1] = target_pos[0];
+            consts[2] = target_pos[1];
+
+            // Define the index vector for this vertex
+            typename QP2D_AD_PH::VecI indices;
+            indices[0] = global_id;
+            indices[1] = global_id + 1;
+
+            // Add the penalty element to the finite element set
+            fe_penalty.instances().add_element(indices, consts);
+
+            std::cout << " - added penalty for vertex " << vh << " with target " << target_pos << std::endl;
+        }
+    }
+
+    fe_problem.add_set(&fe_penalty);
+
+
+    // ****************************************************
+    // Optimization: solve the unconstrained minimization problem
+    // (Note that the penalty terms penalize deviations from the targets)
+    // ****************************************************
+
+    std::cout<<" Energies before optimization: "<<std::endl;
+    fe_problem.print_objectives();
+
+    COMISO::NPTiming fet_problem(&fe_problem);
+
+    COMISO::NewtonSolver ns( 1e-1, 1e-9, max_inner_iters);
+
+
+    // Unconstrained problem now, use normal Newton solve
+    ns.solve(&fet_problem);
+    //solver_iters += ns.iters();
+    bool converged = ns.converged();
+
+    std::cout<<" Energies after optimization: "<<std::endl;
+    fe_problem.print_objectives();
+    //copy problem data back to mesh
+
+    for(auto v: target_mesh.vertices()){
+        int global_id = 2 * v.idx();
+
+        typename OM::Vec3d new_pos;
+        for(int i = 0; i<2; i++){
+            new_pos[i] = fe_problem.x()[global_id + i];
+        }
+        target_mesh.set_point(v, new_pos);
+    }
 
     //return updated mesh positions
 
@@ -320,7 +465,7 @@ void AdaptiveMapOptimizer::regularize_reference_mesh(){
     P_ref[2] << 0.5, 0.5 * std::sqrt(3.0);
 
 
-    // get average size of elements
+    // get average size of elements, 0.433013 area of reference element
     double scale_factor = std::sqrt(average_size / 0.433013);
 
     std::cout << "SCALE FACTOR " << scale_factor << std::endl;
@@ -452,9 +597,30 @@ void AdaptiveMapOptimizer::regularize_reference_mesh(){
 }
 
 void AdaptiveMapOptimizer::one_step(){
+    ConstraintMode mode = QuadraticPenaltyTerm;
+    switch (mode) {
+    case HardConstraint:
 
+        optimize_target_position_with_hard_constraints();
+        break;
+    case ExactPenaltyTerm:
 
-    optimize_target_position();
+        std::cerr << "Not implemented error, exiting" << std::endl;
+        exit(-1);
+
+        break;
+
+    case QuadraticPenaltyTerm:
+
+        optimize_target_position_with_penalty_terms();
+        break;
+
+    default:
+        std::cerr << "Undefined Constraint Mode, please specify" << std::endl;
+        exit(-1);
+        break;
+    }
+
     export_state(steps++);
     remesh();
     regularize_reference_mesh();
@@ -478,7 +644,7 @@ int main(int argc, char const *argv[])
 {
     std::cout << "Hello World " << std::endl;
 
-    // TM mesh = get_disk_mesh_without_interior_vertices(50, 2);
+    // TM mesh = get_disk_mesh_without_interior_vertices(10, 2);
     // OptimizationTarget target = get_disk_optimization_target(mesh, 10, 1);
 
 
@@ -490,7 +656,10 @@ int main(int argc, char const *argv[])
 
     //auto map = AMO::AdaptiveMapOptimizer(disk, target_disk);
 
+    scale_problem(mesh, target, 1);
+
     auto map = AMO::AdaptiveMapOptimizer(mesh, target);
+
 
     map.one_step();
     map.one_step();
@@ -500,7 +669,7 @@ int main(int argc, char const *argv[])
 
     //try with high resolution
     // TM lule_mesh;
-    // OM::IO::read_mesh(lule_mesh, "frames/09reference_mesh.om");
+    // OM::IO::read_mesh(lule_mesh, "frames/05reference_mesh.om");
     // auto lule_map = AMO::AdaptiveMapOptimizer(lule_mesh, target);
 
     // lule_map.one_step();

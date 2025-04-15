@@ -23,3 +23,5 @@ OptimizationTarget get_disk_optimization_target(TM &disk, double inner_radius, d
 
 TM get_box_mesh_one_interior_vertex(int n_height_vertices, double height);
 OptimizationTarget get_box_optimization_target(TM &box, double frequency, double amplitude);
+
+void scale_problem(TM &mesh_, OptimizationTarget &target_, double scaling_factor);
