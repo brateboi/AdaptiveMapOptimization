@@ -1,7 +1,4 @@
 #include <adaptive_map.hh>
-#include <remesher.hh>
-
-
 
 
 void constrain_non_original_vertices(TM &mesh_){
@@ -19,319 +16,7 @@ void constrain_non_original_vertices(TM &mesh_){
 }
 
 
-TM optimize_loose_vertices(TM mesh_){
-    using MyElem = SDEB2D_PH_AD;
-    //using MyElem = COMISO::FiniteElementTinyAD<FoldoverFreeElement2D>;
 
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-    std::cout<<" *** optimizing loose vertices of mesh, i.e. all non-original or inner vertices"<<std::endl;
-
-
-    std::vector<Vec2d> P_ref(3);
-    P_ref[0] << 0,0;
-    P_ref[1] << 1,0;
-    P_ref[2] << 0.5, 0.5 * std::sqrt(3.0);
-
-    // get average size of elements
-    double average_size = total_area(mesh_) / mesh_.n_faces();
-    double scale_factor = std::sqrt(average_size/0.433013);
-
-    for(int i(0); i<3; i++){
-        P_ref[i] *= scale_factor;
-    }
-
-
-    //low weight so the pull has the most influence and this only really serves as a barrier
-    const double Dirichlet_w(1), Dirichlet_barrier_w(0), Dirichlet_barrier_min(1e8);
-    const int max_inner_iters(100);
-    const int n_vars(mesh_.n_vertices() * 2);
-
-    COMISO::FiniteElementProblem fe_problem(n_vars);
-    std::vector<COMISO::LinearConstraint> eq_constraints;
-
-
-    COMISO::FiniteElementSet<MyElem> fe_barrier("barrier elements");
-
-    //add the barrier elements
-    for (auto fh: mesh_.faces()) {
-
-        //std::cout<<" --------------------------------------------------- handling face "<<fh<<std::endl;
-
-        double w = 1;
-        double sizing_scale = 1.0; //compute_sizing_scale(ch);
-
-        typename MyElem::VecI vi_barrier;
-        typename MyElem::VecC vc_barrier;
-        typename MyElem::VecV vx_barrier;
-
-        //auto temp = mesh_.face(fh);
-        std::vector<TM::VertexHandle> verts = std::vector(mesh_.fv_begin(fh), mesh_.fv_end(fh));
-
-        //auto verts = mesh_.get_halfface_vertices(mesh_.halfface_handle(fh,0));
-
-
-        for (int local_vid(0); local_vid < 3; local_vid++) {
-            const auto &vh = verts[local_vid];
-
-            int global_id = vh.idx() * 2;
-            for (int i(0); i < 2; i++) {
-                vi_barrier[2 * local_vid + i] = global_id + i;
-            }
-
-            for (int i(0); i < 2; i++) {
-                fe_problem.x()[global_id + i] = mesh_.point(vh)[i];
-                vx_barrier[2 * local_vid + i] = fe_problem.x()[global_id + i];
-            }
-        }
-
-        auto setup_res = MyElem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
-                                                   P_ref,
-                                                   vc_barrier);
-
-        //std::cout<<" - constants vector: "<<vc_barrier.transpose()<<std::endl;
-
-        if (setup_res) {
-            std::cout << " ERROR: constants couldn't be computed for face: " <<fh<< std::endl;
-            return TM();
-        }
-
-        fe_barrier.instances().add_element(vi_barrier,
-                                           vc_barrier);
-    }
-
-    fe_problem.add_set(&fe_barrier);
-
-
-    //constrain the fixed vertices
-    for(auto v: mesh_.vertices()) {
-        OM::VPropHandleT<bool> fixed_prop;
-        if (mesh_.get_property_handle(fixed_prop, "fixed")){ // retrieving property fixed successful
-
-            if (mesh_.property(fixed_prop, v)){
-                COMISO::LinearConstraint::SVectorNC coeffs0, coeffs1;
-                coeffs0.resize(n_vars);
-                coeffs1.resize(n_vars);
-
-                int var_idx = v.idx() * 2;
-                coeffs0.coeffRef(var_idx + 0) = 1;
-                coeffs1.coeffRef(var_idx + 1) = 1;
-
-                auto pos = mesh_.point(v);
-
-
-                eq_constraints.push_back(COMISO::LinearConstraint(coeffs0, -pos[0]));
-                eq_constraints.push_back(COMISO::LinearConstraint(coeffs1, -pos[1]));
-                std::cout << " - constrained vertex " << v << " to " << pos << std::endl;
-            }
-
-        } else {
-            std::cerr << "Failed to retrieve property \" fixed \". Exiting... " << std::endl;
-            exit(-1);
-        }
-
-    }
-
-    std::vector<COMISO::NConstraintInterface*> constraints_pointers;
-    constraints_pointers.reserve(constraints_pointers.size());
-    for( auto& c : eq_constraints) {
-        constraints_pointers.push_back(&c);
-    }
-
-    std::cout<<" energies before optimization: "<<std::endl;
-    fe_problem.print_objectives();
-
-    COMISO::NPTiming fet_problem(&fe_problem);
-
-    COMISO::NewtonSolver ns( 1e-1, 1e-9, max_inner_iters);
-    ns.solve_infeasible_start(&fet_problem, constraints_pointers);
-    //solver_iters += ns.iters();
-    bool converged = ns.converged();
-
-    std::cout<<" energies after optimization: "<<std::endl;
-    fe_problem.print_objectives();
-    //copy problem data back to mesh
-
-    for(auto v: mesh_.vertices()){
-        int global_id = 2 * v.idx();
-
-        typename OM::Vec3d new_pos;
-        for(int i = 0; i<2; i++){
-            new_pos[i] = fe_problem.x()[global_id + i];
-        }
-        mesh_.set_point(v, new_pos);
-    }
-
-
-    //return updated mesh positions
-    return mesh_;
-
-
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-
-}
-
-
-TM optimize_inner_vertices(TM mesh_) {
-
-    using MyElem = SDEB2D_PH_AD;
-    //using MyElem = COMISO::FiniteElementTinyAD<FoldoverFreeElement2D>;
-
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-    std::cout<<" *** optimizing inner vertices of mesh scaling the reference element by average area"<<std::endl;
-
-
-    std::vector<Vec2d> P_ref(3);
-    P_ref[0] << 0,0;
-    P_ref[1] << 1,0;
-    P_ref[2] << 0.5, 0.5 * std::sqrt(3.0);
-
-
-    // get average size of elements
-    //double average_size = total_area(mesh_) / mesh_.n_faces(); // 40 for the deformed rect case
-    double average_size = 40.; // 40 for the deformed rect case
-    double scale_factor = std::sqrt(average_size / 0.433013);
-
-    std::cout << "SCALE FACTOR " << scale_factor << std::endl;
-
-    for(int i(0); i<3; i++){
-        P_ref[i] *= scale_factor;
-    }
-
-
-    //low weight so the pull has the most influence and this only really serves as a barrier
-    const double Dirichlet_w(1), Dirichlet_barrier_w(0), Dirichlet_barrier_min(1e8);
-    const int max_inner_iters(100);
-    const int n_vars(mesh_.n_vertices() * 2);
-
-    COMISO::FiniteElementProblem fe_problem(n_vars);
-    std::vector<COMISO::LinearConstraint> eq_constraints;
-
-    COMISO::FiniteElementSet<MyElem> fe_barrier("barrier elements");
-
-    //add the barrier elements
-    for (auto fh: mesh_.faces()) {
-
-        //std::cout<<" --------------------------------------------------- handling face "<<fh<<std::endl;
-
-        double w = 1;
-        double sizing_scale = 1.0; //compute_sizing_scale(ch);
-
-        typename MyElem::VecI vi_barrier;
-        typename MyElem::VecC vc_barrier;
-        typename MyElem::VecV vx_barrier;
-
-        //auto temp = mesh_.face(fh);
-        std::vector<TM::VertexHandle> verts = std::vector(mesh_.fv_begin(fh), mesh_.fv_end(fh));
-
-        //auto verts = mesh_.get_halfface_vertices(mesh_.halfface_handle(fh,0));
-
-
-        for (int local_vid(0); local_vid < 3; local_vid++) {
-            const auto &vh = verts[local_vid];
-
-            int global_id = vh.idx() * 2;
-            for (int i(0); i < 2; i++) {
-                vi_barrier[2 * local_vid + i] = global_id + i;
-            }
-
-            for (int i(0); i < 2; i++) {
-                fe_problem.x()[global_id + i] = mesh_.point(vh)[i];
-                vx_barrier[2 * local_vid + i] = fe_problem.x()[global_id + i];
-            }
-        }
-
-        // update P_ref each time to reference mesh
-
-        auto setup_res = MyElem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
-                                                   P_ref,
-                                                   vc_barrier);
-
-        //std::cout<<" - constants vector: "<<vc_barrier.transpose()<<std::endl;
-
-        if (setup_res) {
-            std::cout << " ERROR: constants couldn't be computed for face: " <<fh<< std::endl;
-            return TM();
-        }
-
-        fe_barrier.instances().add_element(vi_barrier,
-                                           vc_barrier);
-    }
-
-    fe_problem.add_set(&fe_barrier);
-
-
-    //constrain the fixed vertices
-    for(auto v: mesh_.vertices()) {
-        if(mesh_.is_boundary(v)) {
-            COMISO::LinearConstraint::SVectorNC coeffs0, coeffs1;
-            coeffs0.resize(n_vars);
-            coeffs1.resize(n_vars);
-
-            int var_idx = v.idx() * 2;
-            coeffs0.coeffRef(var_idx + 0) = 1;
-            coeffs1.coeffRef(var_idx + 1) = 1;
-
-            auto pos = mesh_.point(v);
-
-
-            eq_constraints.push_back(COMISO::LinearConstraint(coeffs0, -pos[0]));
-            eq_constraints.push_back(COMISO::LinearConstraint(coeffs1, -pos[1]));
-            //std::cout << " - constrained vertex " << v << " to " << pos << std::endl;
-        }
-    }
-
-    std::vector<COMISO::NConstraintInterface*> constraints_pointers;
-    constraints_pointers.reserve(constraints_pointers.size());
-    for( auto& c : eq_constraints) {
-        constraints_pointers.push_back(&c);
-    }
-
-    std::cout<<" energies before optimization: "<<std::endl;
-    fe_problem.print_objectives();
-
-    COMISO::NPTiming fet_problem(&fe_problem);
-
-
-    COMISO::NewtonSolver ns( 1e-1, 1e-9, max_inner_iters);
-    ns.solve_infeasible_start(&fet_problem, constraints_pointers);
-    //solver_iters += ns.iters();
-    bool converged = ns.converged();
-
-    std::cout<<" energies after optimization: "<<std::endl;
-    fe_problem.print_objectives();
-    //copy problem data back to mesh
-
-    for(auto v: mesh_.vertices()){
-        int global_id = 2 * v.idx();
-
-        typename OM::Vec3d new_pos;
-        for(int i = 0; i<2; i++){
-            new_pos[i] = fe_problem.x()[global_id + i];
-        }
-        mesh_.set_point(v, new_pos);
-    }
-
-
-    //return updated mesh positions
-    return mesh_;
-
-
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-
-
-
-}
-
-
-void cleanup_disk_mesh(){
-
-    TM mesh;
-    OM::IO::read_mesh(mesh, "../../../meshes/disk.om" );
-    auto heh = mesh.find_halfedge(OM::VertexHandle(21), OM::VertexHandle(22));
-
-
-    OM::IO::write_mesh(mesh, "../../../meshes/cleaned_disk.om");
-}
 
 void classify_vertices(TM &mesh){
     OM::VPropHandleT<int> classification_prop;
@@ -400,295 +85,6 @@ double total_area(TM &mesh_){
 
     return area;
 
-}
-
-
-double calculate_energy_of_mesh(TM &mesh_){
-
-    using MyElem = SDEB2D_PH_AD;
-
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-    std::cout<<" *** Calculating energy with CoMISo"<<std::endl;
-
-
-    std::vector<Vec2d> P_ref(3);
-    P_ref[0] << 0,0;
-    P_ref[1] << 1,0;
-    P_ref[2] << 0.5, 0.5 * std::sqrt(3.0);
-
-    // get average size of elements
-    double average_size = total_area(mesh_) / mesh_.n_faces();
-    std::cout << "area" << total_area(mesh_) << std::endl;
-
-    // average_size is target_volume
-
-    double scale_factor = std::sqrt(average_size / 0.433013);
-
-
-    for(int i(0); i<3; i++){
-        P_ref[i] *= scale_factor;
-    }
-
-
-    //low weight so the pull has the most influence and this only really serves as a barrier
-    const double Dirichlet_w(1), Dirichlet_barrier_w(0), Dirichlet_barrier_min(1e8);
-    const int max_inner_iters(100);
-    const int n_vars(mesh_.n_vertices() * 2);
-
-    COMISO::FiniteElementProblem fe_problem(n_vars);
-    std::vector<COMISO::LinearConstraint> eq_constraints;
-
-
-    COMISO::FiniteElementSet<MyElem> fe_barrier("barrier elements");
-
-    //add the barrier elements
-    for (auto fh: mesh_.faces()) {
-
-        //std::cout<<" --------------------------------------------------- handling face "<<fh<<std::endl;
-
-        double w = 1;
-        double sizing_scale = 1.0; //compute_sizing_scale(ch);
-
-        typename MyElem::VecI vi_barrier;
-        typename MyElem::VecC vc_barrier;
-        typename MyElem::VecV vx_barrier;
-
-        //auto temp = mesh_.face(fh);
-        std::vector<TM::VertexHandle> verts = std::vector(mesh_.fv_begin(fh), mesh_.fv_end(fh));
-
-        //auto verts = mesh_.get_halfface_vertices(mesh_.halfface_handle(fh,0));
-
-
-        for (int local_vid(0); local_vid < 3; local_vid++) {
-            const auto &vh = verts[local_vid];
-
-            int global_id = vh.idx() * 2;
-            for (int i(0); i < 2; i++) {
-                vi_barrier[2 * local_vid + i] = global_id + i;
-            }
-
-            for (int i(0); i < 2; i++) {
-                fe_problem.x()[global_id + i] = mesh_.point(vh)[i];
-                vx_barrier[2 * local_vid + i] = fe_problem.x()[global_id + i];
-            }
-        }
-
-        auto setup_res = MyElem::compute_constants(Dirichlet_w, Dirichlet_barrier_w, Dirichlet_barrier_min,
-                                                   P_ref,
-                                                   vc_barrier);
-
-        //std::cout<<" - constants vector: "<<vc_barrier.transpose()<<std::endl;
-
-        if (setup_res) {
-            std::cout << " ERROR: constants couldn't be computed for face: " <<fh<< std::endl;
-            exit(-1);
-        }
-
-        fe_barrier.instances().add_element(vi_barrier,
-                                           vc_barrier);
-    }
-
-    fe_problem.add_set(&fe_barrier);
-
-    std::cout<<" energies before optimization: "<<std::endl;
-    fe_problem.print_objectives();
-
-
-    std::cout<<" --------------------------------------------------------- "<<std::endl;
-
-
-    auto SDE_Element = [&](OM::FaceHandle face) -> double {
-        std::vector<OM::VertexHandle> verts;
-        for (auto v_it = mesh_.fv_begin(face); v_it.is_valid(); ++v_it){
-            verts.push_back(*v_it);
-        }
-        assert(verts.size() == 3);
-
-        Vec2d v0 = Vec2d(mesh_.point(verts[0]).data());
-        Vec2d v1 = Vec2d(mesh_.point(verts[1]).data());
-        Vec2d v2 = Vec2d(mesh_.point(verts[2]).data());
-
-        // get ref edge  matrix
-        Mat2d E_ref;
-
-        E_ref.col(0) = P_ref[1] - P_ref[0];
-        E_ref.col(1) = P_ref[2] - P_ref[0];
-
-
-        // get edge vectors
-        Mat2d E;
-        E.col(0) = v1 - v0;
-        E.col(1) = v2 - v0;
-
-
-        // calc  Jacobi Matrix of map
-        Mat2d J = E * E_ref.inverse();
-
-        double E_sd = (J.squaredNorm() + J.inverse().squaredNorm() - 4.0);
-
-        return E_sd;
-        //if (barrier_w && barrier_min - E_sd <= 0.0) {
-            //std::cout<<" inf barrier term"<<std::endl;
-        //    return static_cast<ScalarT>(std::numeric_limits<double>::infinity());
-        //}
-        //return w * E_sd;
-
-        //return w * E_sd + barrier_w / (barrier_min - E_sd);
-
-        //return 0;
-    };
-
-    OM::FPropHandleT<double> energy_prop;
-    mesh_.add_property(energy_prop, "energy");
-    mesh_.property(energy_prop).set_persistent(true);
-
-
-    double total_energy = 0;
-    for (auto face : mesh_.faces()){
-        double energy = SDE_Element(face);
-        mesh_.property(energy_prop, face) = energy;
-
-
-        total_energy += energy;
-    }
-
-    std::cout << "+++++ ENERGY CALCULATED MANUALLY: " << total_energy << std::endl;
-    return total_energy;
-}
-
-void energy_computation_test(){
-    TM mesh;
-
-    auto vh0 = mesh.add_vertex(OM::Vec3d(0,0,0));
-    auto vh1 = mesh.add_vertex(OM::Vec3d(2,0,0));
-    auto vh2 = mesh.add_vertex(OM::Vec3d(0.5,0.1*std::sqrt(3),0));
-
-    auto fh1 = mesh.add_face(vh0, vh1, vh2);
-
-    double energy = calculate_energy_of_mesh(mesh);
-
-    std::cout << "+++++ ENERGY CALCULATED MANUALLY: " << energy << std::endl;
-}
-
-void collapse_test(){
-    TM mesh;
-    mesh.request_edge_status();
-    mesh.request_halfedge_status();
-    mesh.request_vertex_status();
-    mesh.request_face_status();
-    constrain_non_original_vertices(mesh);
-
-    auto a = mesh.add_vertex(OM::Vec3d(-2.2,-1,0));
-    auto b = mesh.add_vertex(OM::Vec3d(-2,-1,0));
-    auto c = mesh.add_vertex(OM::Vec3d(-2.48,-6.04,0));
-    auto d = mesh.add_vertex(OM::Vec3d(-5.04,-2.82,0));
-    auto e = mesh.add_vertex(OM::Vec3d(-2.5,0.7,0));
-    auto f = mesh.add_vertex(OM::Vec3d(-0.4,0.78,0));
-    auto g = mesh.add_vertex(OM::Vec3d(0.18,-2.84,0));
-
-    auto fh1 = mesh.add_face(a, c, b);
-    auto fh2 = mesh.add_face(a, d, c);
-    auto fh3 = mesh.add_face(a, e, d);
-    auto fh4 = mesh.add_face(a, b, e);
-    auto fh5 = mesh.add_face(b, f, e);
-    auto fh6 = mesh.add_face(b, g, f);
-    auto fh7 = mesh.add_face(b, c, g);
-
-    OM::IO::write_mesh(mesh, "../../../meshes/before_collapse_test.om");
-
-    TM after_collapse = one_refine_step(mesh);
-
-    after_collapse.garbage_collection();
-
-
-    OM::IO::write_mesh(after_collapse, "../../../meshes/after_collapse_test.om");
-}
-
-
-void intuition_test(){
-    TM before;
-    TM after;
-
-    OM::IO::read_mesh(before, "../../../meshes/before_collapse_test.om");
-    OM::IO::read_mesh(after, "../../../meshes/after_collapse_test.om");
-
-    calculate_energy_of_mesh(before);
-    calculate_energy_of_mesh(after);
-
-    TM before_optimized = optimize_inner_vertices(before);
-    TM after_optimized = optimize_inner_vertices(after);
-
-    calculate_energy_of_mesh(before_optimized);
-    calculate_energy_of_mesh(after_optimized);
-
-    OM::IO::write_mesh(after_optimized, "../../../meshes/optimized_after_collapse_test.om");
-    OM::IO::write_mesh(before_optimized, "../../../meshes/optimized_before_collapse_test.om");
-
-    OM::IO::write_mesh(after, "../../../meshes/after_collapse_test.om");
-    OM::IO::write_mesh(before, "../../../meshes/before_collapse_test.om");
-
-}
-
-void split_test(){
-    TM mesh;
-    mesh.request_edge_status();
-    mesh.request_halfedge_status();
-    mesh.request_vertex_status();
-    mesh.request_face_status();
-    constrain_non_original_vertices(mesh);
-
-    auto a = mesh.add_vertex(OM::Vec3d(-2.64,-0.18,0));
-    auto b = mesh.add_vertex(OM::Vec3d(-0.1,0.18,0));
-    auto c = mesh.add_vertex(OM::Vec3d(3.48,-0.32,0));
-    auto d = mesh.add_vertex(OM::Vec3d(0.58,-6.16,0));
-    auto e = mesh.add_vertex(OM::Vec3d(-8.46,-1.2,0));
-    auto f = mesh.add_vertex(OM::Vec3d(-2.84,3.72,0));
-    auto g = mesh.add_vertex(OM::Vec3d(2.92,3.68,0));
-    auto h = mesh.add_vertex(OM::Vec3d(10,-1,0));
-
-    auto fh1 = mesh.add_face(a, c, b);
-    auto fh2 = mesh.add_face(a, b, f);
-    auto fh3 = mesh.add_face(a, f, e);
-    auto fh4 = mesh.add_face(a, e, d);
-    auto fh5 = mesh.add_face(a, d, c);
-    //auto fh6 = mesh.add_face(b, g, f); // not in one ring of edge
-    auto fh7 = mesh.add_face(b, c, g);
-    auto fh8 = mesh.add_face(c, d, h);
-    auto fh9 = mesh.add_face(c, h, g);
-
-    OM::IO::write_mesh(mesh, "../../../meshes/before_split_test.om");
-
-    TM after_split = one_refine_step(mesh);
-
-
-    after_split.garbage_collection();
-
-    TM before_optimized = optimize_inner_vertices(mesh);
-    TM after_optimized = optimize_inner_vertices(after_split);
-
-
-    calculate_energy_of_mesh(mesh);
-    calculate_energy_of_mesh(after_split);
-    calculate_energy_of_mesh(before_optimized);
-    calculate_energy_of_mesh(after_optimized);
-
-    OM::IO::write_mesh(after_optimized, "../../../meshes/optimized_after_split_test.om");
-    OM::IO::write_mesh(before_optimized, "../../../meshes/optimized_before_split_test.om");
-
-
-    OM::IO::write_mesh(after_split, "../../../meshes/after_split_test.om");
-}
-
-
-void minimum_example(){
-
-    TM mesh = get_minimum_mesh();
-
-    OM::IO::write_mesh(mesh, "../../../meshes/base_mesh.om");
-
-    TM optimized_mesh = optimize_inner_vertices(mesh);
-
-    OM::IO::write_mesh(optimized_mesh, "../../../meshes/optimized_mesh.om");
 }
 
 
@@ -856,4 +252,144 @@ void scale_problem(TM &mesh_, OptimizationTarget &target_, double scaling_factor
         target_.at(i) = {pair.first, new_pos};
 
     }
+}
+
+
+std::vector<OM::HalfedgeHandle> is_collapse_okay(TM &mesh_, OM::EdgeHandle eh, double _epsilon){
+
+    auto heh0 = mesh_.halfedge_handle(eh, 0);
+    auto heh1 = mesh_.halfedge_handle(eh, 1);
+
+    OM::VPropHandleT<bool> fixed_prop;
+    if (!mesh_.get_property_handle(fixed_prop, "fixed")){
+        std::cerr << "COULD NOT ACCESS FIXED PROPERTY, exiting" << std::endl;
+        exit(-1);
+    }
+
+
+    auto check_all_cases = [&](OM::HalfedgeHandle &heh) -> bool {
+
+        if (!mesh_.is_collapse_ok(heh)){
+            std::cout << "-> LINK CONDITION NOT OKAY" << std::endl;
+            return false;
+        }
+
+
+        auto from_v = mesh_.from_vertex_handle(heh); // from_vertex moves and gets deleted
+        auto to_v = mesh_.to_vertex_handle(heh); // to_vertex doesnt move
+
+        // Only non-original vertices can move
+        if (mesh_.property(fixed_prop, from_v)){ // from_vertex not allowed to move because original vertex
+            std::cout << "-> COLLAPSE ORIGINAL VERTEX NOT ALLOWED" << std::endl;
+            return false;
+        }
+
+        // Collapse not along boundary not okay
+        if (mesh_.is_boundary(from_v) && !mesh_.is_boundary(mesh_.edge_handle(heh))){
+            std::cout << "-> COLLAPSE NOT ALONG BOUNDARY" << std::endl;
+            return false;
+        }
+
+        // Geometry Check, check for inverted triangles around one-ring of halfedge.
+
+        if (!triangle_flip_condition(mesh_, heh, _epsilon)){
+            std::cout << "-> TRIANGLE FLIP CONDIITOIN NOT MET" << std::endl;
+            return false;
+        }
+
+        // passed all checks, collapsing this halfedge is okay
+        return true;
+    };
+
+    std::vector<OM::HalfedgeHandle> result = {};
+
+    if (check_all_cases(heh0)) result.push_back(heh0);
+    if (check_all_cases(heh1)) result.push_back(heh1);
+
+
+    //passed all tests
+    return result;
+}
+
+
+
+/**
+ * @brief triangle_flip_condition
+ * @param heh to be collapsed
+ * @param _epsilon minimum area of triangle
+ * @return true, if everything ok
+ */
+bool triangle_flip_condition(TM &mesh_, OM::HalfedgeHandle &heh, double _epsilon){
+    // simulate collapse of halfedge and check if any incident triangle flips or produces very thin triangle, i.e. side length < epsilon
+
+    // hehs that need not be checked
+    auto heh1 = mesh_.next_halfedge_handle(heh);
+    auto heh2 = mesh_.prev_halfedge_handle(mesh_.opposite_halfedge_handle(heh));
+
+    auto from_v = mesh_.from_vertex_handle(heh);
+    auto to_v = mesh_.to_vertex_handle(heh);
+    auto pos0 = mesh_.point(to_v);
+
+    auto sidelength = [&](TM::Point p, TM::Point q) -> double {
+        //std::cout << "checking point P " << p << "  and q  " << q << std::endl;
+
+
+        double x2 = std::pow(p[0] - q[0], 2);
+        double y2 = std::pow(p[1] - q[1], 2);
+
+
+        double result = std::sqrt(x2+y2);
+        if (result < _epsilon){
+            std::cout << "---0SIDELENGTH" << result << std::endl;
+        }
+        return result;
+    };
+
+
+    // returns false if p, q, r are not oriented ccw, or if sidelength < _epsilon
+    auto well_oriented = [&](TM::Point p, TM::Point q, TM::Point r) -> bool {
+
+        // if area of triangle is smaller than _epsilon return false
+
+        double val0 = q[0] - p[0];
+        double val1 = r[0] - p[0];
+        double val2 = q[1] - p[1];
+        double val3 = r[1] - p[1];
+
+        if (val0 * val3 - val2 * val1 < _epsilon) {
+            std::cout << "       TOO SMALL Determinant" << std::endl;
+            return false;
+        }
+
+        // only check if we are "CREATING" a small sidelength
+        // if (sidelength(p,q) < _epsilon || sidelength(p,r) < _epsilon){
+        //     std::cout << "       SMALL SIDELENGTH" << std::endl;
+        //     return false;
+        // }
+
+        return true; // oriented ccw and sidelength > _epsilon
+    };
+
+    // Iterate over outgoing halfedges, collect remaining two points, check triangle orientation
+    for (auto o_heh_it = mesh_.voh_begin(from_v); o_heh_it.is_valid(); ++o_heh_it){
+        auto opp_heh = mesh_.next_halfedge_handle(*o_heh_it);
+
+        // check if from face not needing to be checked
+        if (opp_heh == heh1 || opp_heh == heh2){
+            continue;
+        }
+
+        auto pos1 = mesh_.point(mesh_.from_vertex_handle(opp_heh));
+        auto pos2 = mesh_.point(mesh_.to_vertex_handle(opp_heh));
+
+        // triangle needs to have ccw orientation of pos0, pos1, pos2
+
+        if (!well_oriented(pos0, pos1, pos2)){
+            return false;
+        }
+
+    }
+
+    // passed all checks
+    return true;
 }

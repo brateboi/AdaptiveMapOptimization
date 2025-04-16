@@ -7,9 +7,8 @@
 
 void minimum_example();
 void energy_computation_test();
-double calculate_energy_of_mesh(TM &mesh_);
-TM optimize_inner_vertices(TM mesh_);
-TM optimize_loose_vertices(TM mesh_);
+
+
 void collapse_test();
 void constrain_non_original_vertices(TM &mesh_);
 double total_area(TM &mesh_);
@@ -25,3 +24,6 @@ TM get_box_mesh_one_interior_vertex(int n_height_vertices, double height);
 OptimizationTarget get_box_optimization_target(TM &box, double frequency, double amplitude);
 
 void scale_problem(TM &mesh_, OptimizationTarget &target_, double scaling_factor);
+
+std::vector<OM::HalfedgeHandle> is_collapse_okay(TM &mesh_, OM::EdgeHandle eh, double _epsilon = 1e-10);
+bool triangle_flip_condition(TM &mesh_, OM::HalfedgeHandle &heh, double _epsilon);

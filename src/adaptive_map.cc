@@ -1,19 +1,12 @@
 #include <format>
 #include <includes.hh>
 #include <adaptive_map.hh>
-#include <stress_tests.hh>
-#include <remesher.hh>
 
 namespace AMO = AdaptiveMapOptimizer;
 using OptimizationTarget = std::vector<std::pair<OM::VertexHandle, OM::Vec3d>>;
 
 namespace AdaptiveMapOptimizer {
 
-enum ConstraintMode {
-    HardConstraint,
-    QuadraticPenaltyTerm, // 2-norm
-    ExactPenaltyTerm, // 1-norm
-};
 
 void AdaptiveMapOptimizer::remesh(){
 
@@ -176,8 +169,8 @@ void AdaptiveMapOptimizer::optimize_target_position_with_penalty_terms(){
     const int max_inner_iters(100);
     const int n_vars(target_mesh.n_vertices() * 2);
 
-    const double target_penalty_weight = 1; // TODO, SCALE INVARIANT
-
+    const double target_penalty_weight = 1e10; // TODO, SCALE INVARIANT
+    //const double target_penalty_weight = 1/(average_size*average_size);
 
     std::cout << "#######nr of n_vars " << n_vars << std::endl;
 
@@ -597,8 +590,8 @@ void AdaptiveMapOptimizer::regularize_reference_mesh(){
 }
 
 void AdaptiveMapOptimizer::one_step(){
-    ConstraintMode mode = QuadraticPenaltyTerm;
-    switch (mode) {
+
+    switch (constraint_mode) {
     case HardConstraint:
 
         optimize_target_position_with_hard_constraints();
@@ -625,6 +618,49 @@ void AdaptiveMapOptimizer::one_step(){
     remesh();
     regularize_reference_mesh();
     export_state(steps++);
+}
+
+
+
+
+
+void AdaptiveMapOptimizer::run_pipeline(){
+    std::cout <<"Hello ???" << std::endl;
+    switch (pipeline_mode){
+    case Mine:
+
+
+        one_step();
+        one_step();
+        one_step();
+        one_step();
+        std::cout << "lule" << std::endl;
+
+        break;
+    case RemeshingAssisted:
+
+
+
+        std::cout << "Remeshing Assited" << std::endl;
+
+        break;
+
+    case Panozzo:
+        std::cerr << "Not implemented error, exiting" << std::endl;
+        exit(-1);
+
+        break;
+    default:
+        std::cerr << "Undefined Pipeline Mode, please specify" << std::endl;
+        exit(-1);
+
+        break;
+
+    }
+
+
+    return;
+
 }
 
 } // namespace AdaptiveMapOptimizer
@@ -656,15 +692,13 @@ int main(int argc, char const *argv[])
 
     //auto map = AMO::AdaptiveMapOptimizer(disk, target_disk);
 
-    scale_problem(mesh, target, 1);
+    scale_problem(mesh, target, 1e0);
 
-    auto map = AMO::AdaptiveMapOptimizer(mesh, target);
+    auto map = AMO::AdaptiveMapOptimizer(mesh, target, AMO::QuadraticPenaltyTerm, AMO::Mine);
 
+    std::cout << "running pipeline now" << std::endl;
+    map.run_pipeline();
 
-    map.one_step();
-    map.one_step();
-    map.one_step();
-    map.one_step();
 
 
     //try with high resolution
@@ -676,19 +710,10 @@ int main(int argc, char const *argv[])
 
 
 
-
-    //energy_computation_test();
-
     //minimum_example();
 
     //classify_disk();
     //classify_rectangle();
-
-    //cleanup_disk_mesh();
-
-    //do_stress_test_disk(0.10, 5.0);
-
-    // do_stress_test_box(2.0, 100.0);
 
     //collapse_test();
 
@@ -697,20 +722,6 @@ int main(int argc, char const *argv[])
     //split_test();
 
 
-    // TM deformed_mesh;
-
-    // OM::IO::read_mesh(deformed_mesh, "../../../meshes/rectangle1_deformed.om" );
-
-    // calculate_energy_of_mesh(deformed_mesh);
-
-    // deformed_mesh.request_edge_status();
-    // deformed_mesh.request_halfedge_status();
-    // deformed_mesh.request_vertex_status();
-    // deformed_mesh.request_face_status();
-
-
-    // constrain_non_original_vertices(deformed_mesh);
-    // refine_and_optimize(deformed_mesh);
 
 
 

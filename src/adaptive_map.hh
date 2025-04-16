@@ -10,6 +10,18 @@
 
 namespace AdaptiveMapOptimizer {
 
+enum PipelineMode {
+    Mine,
+    RemeshingAssisted,
+    Panozzo
+};
+
+enum ConstraintMode {
+    HardConstraint,
+    QuadraticPenaltyTerm, // 2-norm
+    ExactPenaltyTerm, // 1-norm
+};
+
 using OptimizationTarget = std::vector<std::pair<OM::VertexHandle, OM::Vec3d>>;
 
 
@@ -19,9 +31,11 @@ class AdaptiveMapOptimizer {
 public :
 
 
-    AdaptiveMapOptimizer(TM reference_mesh_, OptimizationTarget &target_){
+    AdaptiveMapOptimizer(TM reference_mesh_, OptimizationTarget &target_, ConstraintMode constraint_mode_, PipelineMode pipeline_mode_){
         reference_mesh = reference_mesh_;
         target_mesh = reference_mesh_;
+        constraint_mode = constraint_mode_;
+        pipeline_mode = pipeline_mode_;
         //target = target_;
 
         add_target_position(target_);
@@ -58,6 +72,8 @@ public :
 
     void regularize_reference_mesh();
 
+    void run_pipeline();
+
 private:
 
     void add_target_position(OptimizationTarget &target_);
@@ -73,10 +89,15 @@ private:
     OM::VPropHandleT<bool> has_target;
 
     RemesherValentin remesher = RemesherValentin(reference_mesh, target_mesh, remaining, target_positions, has_target);
+    //RemesherJin remesher = RemesherJin(reference_mesh, target_mesh, remaining, target_positions, has_target);
     //RemesherNaive remesher = RemesherNaive(reference_mesh, target_mesh, remaining );
 
     int steps = 0;
     double average_size;
+
+
+    ConstraintMode constraint_mode;
+    PipelineMode pipeline_mode;
 
 };
 

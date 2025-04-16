@@ -92,21 +92,24 @@ endif()
 
 add_executable(adaptive_map_optimization
         src/adaptive_map.cc
-        src/stress_tests.cc
-        src/helpers.cc
-        src/remesher.cc
-
         src/adaptive_map.hh
+
+        src/helpers.cc
         src/helpers.hh
+
         src/includes.hh
+
         src/OptimizationElements2D.hh
-        src/remesher.hh
-        src/stress_tests.hh
+
         src/RemesherBase.hh
         src/RemesherValentin.hh
         src/RemesherValentin.cc
         src/RemesherNaive.hh
         src/RemesherNaive.cc
+        src/RemeshingAssisted.hh
+        src/RemeshingAssisted.cc
+
+
 
 
 
@@ -130,16 +133,11 @@ target_link_libraries(adaptive_map_optimization PUBLIC
 #make library for openflipper
 add_library(Adopt STATIC
     src/adaptive_map.cc
-    src/stress_tests.cc
     src/helpers.cc
-    src/remesher.cc
-
     src/adaptive_map.hh
     src/helpers.hh
     src/includes.hh
     src/OptimizationElements2D.hh
-    src/remesher.hh
-    src/stress_tests.hh
     src/RemesherBase.hh
     src/RemesherValentin.hh
     src/RemesherValentin.cc
